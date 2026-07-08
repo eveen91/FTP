@@ -9,7 +9,7 @@ REMOTE_DIR="/sciezka/do/plikow/"    # Ścieżka docelowa na serwerze
 
 SSH_KEY="/home/admin/.ssh/id_ed25519" # Ścieżka do klucza SSH (ed25519)
 
-LOG_FILE="/tmp/fwpl_cleanup.log"
+LOG_FILE="/tmp/CPSnapshot_cleanup.log"
 UPLOAD_FOLDER="./upload"
 
 set -euo pipefail
