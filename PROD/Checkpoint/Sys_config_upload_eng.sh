@@ -31,17 +31,13 @@ log_msg "Starting cleanup and TGZ file transfer process..."
 # ==========================================
 # HELPER FUNCTION: Date Normalization (SORT CORRECTION)
 # ==========================================
-# Input format in filename: DD_Mon_YYYY_HH_MM_SS (e.g., 22_May_2026_10_10_04)
-# Outputs a comparable format: YYYY_MM_DD_HH_MM_SS
 normalize_date() {
   local raw_date="$1"
 
-  # Define months as numbers (US/EN)
   declare -A months
   months=([Jan]=01 [Feb]=02 [Mar]=03 [Apr]=04 [May]=05 [Jun]=06
     [Jul]=07 [Aug]=08 [Sep]=09 [Oct]=10 [Nov]=11 [Dec]=12)
 
-  # Parse: split by underscore
   local day=$(echo "$raw_date" | cut -d'_' -f1)
   local month_name=$(echo "$raw_date" | cut -d'_' -f2)
   local year=$(echo "$raw_date" | cut -d'_' -f3)
@@ -49,19 +45,39 @@ normalize_date() {
   local min=$(echo "$raw_date" | cut -d'_' -f5)
   local sec=$(echo "$raw_date" | cut -d'_' -f6)
 
-  # Convert month to number
   local month_num="${months[$month_name]:-00}"
 
-  # Return lexically comparable string (YYYY_MM_DD...)
   echo "$year$month_num${day}${hour}${min}${sec}"
+}
+
+# ==========================================
+# HELPER FUNCTION: Extract System Name (CORRECTED)
+# ==========================================
+# Returns system name e.g., -fwpl1 or fwpl2 based on filename prefix "backup_-<System>_<Domain>..."
+extract_system_name() {
+  local file="$1"
+  # 1. Get base filename without directory path to ensure consistency
+  local basename=$(basename "$file")
+
+  # 2. Remove leading "backup_-" or "backup_" if present.
+  # Pattern handles the hyphen explicitly as seen in logs.
+  local rest="${basename#backup_-}"
+  rest="${rest#backup_}" # Fallback if only backup_ prefix
+
+  # 3. Get first field before next underscore (domain separator)
+  local system_name=$(echo "$rest" | cut -d'_' -f1)
+
+  # 4. Remove trailing hyphen if exists (e.g. fwpl2-)
+  system_name="${system_name%-}"
+
+  echo "$system_name"
 }
 
 # ==========================================
 # PART 0: CHECK UPLOAD FOLDER
 # ==========================================
-
 shopt -s nullglob
-all_files=(*.tgz) # Filter only .tgz (change to *.tar or *.tgz if needed)
+all_files=(*.tgz) # Filter only .tgz
 
 if [ ${#all_files[@]} -eq 0 ]; then
   log_msg "Error: No .tgz files found in catalog"
@@ -69,15 +85,12 @@ if [ ${#all_files[@]} -eq 0 ]; then
 fi
 
 log_msg "Checking contents of folder '$UPLOAD_FOLDER'..."
-
 declare -a files_to_upload=()
 
-# If upload folder is not empty, add existing files to upload list
 if [ -n "$(ls -A "$UPLOAD_FOLDER" 2> /dev/null)" ]; then
   log_msg "Folder '$UPLOAD_FOLDER' contains files. Adding them to upload list..."
 
   for file in "$UPLOAD_FOLDER"/*; do
-    # Check extension (set above)
     if [[ "$(basename "$file")" == *.tgz ]]; then
       files_to_upload+=("$file")
     fi
@@ -91,42 +104,19 @@ fi
 # ==========================================
 # PART 1: ANALYSIS AND TRANSFER OF OLD FILES
 # ==========================================
-declare -A best_files # Keep newest snapshots per system (for files in current catalog)
+declare -A best_files # Keep newest snapshots per system
 
 for file in "${all_files[@]}"; do
-  # Extract System Name from new format: backup_-<system>_<domain>.<date>.tgz
-  # Remove "backup_" and first part after hyphen before second underscore section (domain)
-  # Example: backup_-fwpl2-_... -> system = fwpl2
-
-  local_name="${file#*_}" # Remove first segment name if in loop, but here it's full path
-  # Simple logic: remove "backup_" at beginning
-  local_rest="${local_name#backup_-}"
-  # System is the part before next "_" (before domain) or before date.
-  # Format suggests: backup_-SYSTEM-_DOMAIN.DOMAIN.DATE...
-  # Split by "_" and take second part? No, better find SYSTEM segment.
-
-  # Safer extraction for this specific format:
-  # 1. Remove "backup_-" (if exists) or "backup_"
-  rest="${local_name#backup_-}"
-  # Rest is e.g.: fwpl2-_fwpl2.erv-global.net_22_May_2026...
-
-  # System found before next underscore "_" that starts domain/date section
-  system_name=$(echo "$rest" | cut -d'_' -f1) # First part: fwpl2
-
-  # Remove trailing hyphen if exists (e.g. fwpl2-)
-  system_name="${system_name%-}"
-
-  # Get date/time for comparison
-  # Format in name: _DD_Mon_YYYY_HH_MM_SS.tgz (part after second underscore before extension)
-  file_timestamp_raw=$(echo "$file" | sed 's/.*_\([0-9][0-9]*_[A-Za-z]*_[0-9]*_[0-9]*_[0-9]*\)\.tgz/\1/')
-
-  # Normalize date to number (e.g., 2026_05_22...)
-  file_timestamp=$(normalize_date "$file_timestamp_raw")
+  # Use helper function for consistency
+  system_name=$(extract_system_name "$file")
 
   if [ -z "${best_files[$system_name]+x}" ]; then
     best_files[$system_name]="$file"
   else
     # Compare date (numeric) in Bash works correctly lexically for YYYYMM... format
+    file_timestamp_raw=$(echo "$file" | sed 's/.*_\([0-9][0-9]*_[A-Za-z]*_[0-9]*_[0-9]*_[0-9]*\)\.tgz/\1/')
+    file_timestamp=$(normalize_date "$file_timestamp_raw")
+
     if [[ "$file_timestamp" > "${best_files[$system_name]}" ]]; then
       log_msg "Update for $system_name: ${best_files[$system_name]} -> $file"
       best_files[$system_name]="$file"
@@ -135,14 +125,14 @@ for file in "${all_files[@]}"; do
 done
 
 # ==========================================
-# PART 2: TRANSFERRING OLD FILES TO UPLOAD
+# PART 2: TRANSFERRING OLD FILES TO UPLOAD (CORRECTED)
 # ==========================================
 log_msg "Moving older files to catalog '$UPLOAD_FOLDER'..."
 
 for file in "${all_files[@]}"; do
-  system_name=$(echo "$file" | sed 's/.*_-//; s/_/\./1') # Extract system name from new format
+  # Use SAME helper function as Part 1 to ensure key matches exactly
+  system_name=$(extract_system_name "$file")
 
-  # Since we already read best_files for this system above, check if this file is not the best one
   if [ -n "${best_files[$system_name]+x}" ]; then
     if [[ "$file" != "${best_files[$system_name]}" ]]; then
       log_msg "Moving old: $file -> ./upload/"
@@ -152,7 +142,14 @@ for file in "${all_files[@]}"; do
       }
     fi
   else
-    log_msg "Warning: System $system_name does not have saved 'best' file (not in array)"
+    # Only warn if system is actually found in list (which it is now)
+    # But since we are iterating all files, and best_files stores the BEST one for each SYSTEM.
+    # If a system has NO best file stored (unlikely here), skip.
+    # With fix, this warning will appear much less often or correctly identify systems not in array if any.
+    : # Silently ignore or log differently?
+    # Actually, if we iterate all files and check if it's the 'best' one, this block shouldn't warn "missing best"
+    # because best_files is populated from 'all_files' which contains current catalog.
+    # This warning was caused by mismatched keys. Now fixed.
   fi
 done
 
@@ -171,7 +168,6 @@ else
     log_msg "Uploading: $remote_name to $SSH_HOST${REMOTE_DIR}"
 
     # 1. Sending file via SCP (SRC -> DST)
-    # Using SSH key and batch mode
     if ! scp -i "$SSH_KEY" \
       -o BatchMode=yes \
       -o StrictHostKeyChecking=no \
