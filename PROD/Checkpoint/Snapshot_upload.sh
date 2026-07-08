@@ -15,10 +15,10 @@ UPLOAD_FOLDER="./upload"
 # Włącz tryb logowania do pliku i terminalu
 set -euo pipefail
 
-mkdir -p "$UPLOAD_FOLDER" 2> /dev/null || {
-  echo "Nie można utworzyć folderu $UPLOAD_FOLDER"
-  exit 1
-}
+#mkdir -p "$UPLOAD_FOLDER" 2> /dev/null || {
+#  echo "Nie można utworzyć folderu $UPLOAD_FOLDER"
+#  exit 1
+#}
 mkdir -p "$(dirname "$LOG_FILE")"
 
 log_msg() {
@@ -104,8 +104,8 @@ else
       -o StrictHostKeyChecking=no \
       -o UserKnownHostsFile=/dev/null \
       -o ConnectTimeout=60 \
-      "${SSH_USER}@${SSH_HOST}:${REMOTE_DIR}/${remote_name}" \
-      "$local_file" 2> /dev/null; then
+      "$local_file" \
+      "${SSH_USER}@${SSH_HOST}:${REMOTE_DIR}/${remote_name}" 2> /dev/null; then
       log_msg "Błąd wysyłania: $remote_name na serwerze SSH."
       exit 1
     fi
