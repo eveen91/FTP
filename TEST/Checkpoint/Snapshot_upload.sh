@@ -24,7 +24,7 @@ sftp_server="sftp.server.com"
 remote_dir="/remote/directory/"
 
 # Log file path with date appended
-log_file="/home/fwbackup/log/config_upload_$(date +%Y%m%d).txt"
+log_file="/home/fwbackup/log/snapshot_upload_$(date +%Y%m%d).txt"
 
 # Ensure the log directory exists
 mkdir -p "$(dirname "$log_file")"
@@ -59,7 +59,7 @@ find "$backup_dir" -maxdepth 1 -name "*.tar" -print0 > "$file_list"
 while IFS= read -r -d '' file; do
   base=$(basename "$file")
   # Extract the system name from the filename (backup_-<system_name>-fqdn-date.tgz)
-  firewall_name=$(echo "$base" | cut -d'-' -f2)
+  firewall_name=$(echo "$base" | cut -d'_' -f1)
   mtime=$(stat -c %Y "$file")
 
   file_count=$((file_count + 1))
