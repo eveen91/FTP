@@ -17,6 +17,12 @@ set -euo pipefail
 backup_dir="."
 upload_dir="upload"
 
+# SFTP connection parameters
+ssh_key="/path/to/your/private/key"
+sftp_user="sftp_username"
+sftp_server="sftp.server.com"
+remote_dir="/remote/directory/"
+
 echo "==> Starting backup sort in '$backup_dir', older files go to '$upload_dir/'"
 
 # Create upload directory if it doesn't exist
@@ -68,10 +74,16 @@ done < "$file_list"
 
 echo "==> Done. Processed $file_count file(s), moved $moved_count to '$upload_dir/'."
 if ((file_count > 0)); then
-  echo "==> Newest backup kept in '$backup_dir' for each system:"
-  for name in "${!newest_file[@]}"; do
-    echo "    - $name: $(basename "${newest_file[$name]}")"
+  echo "==> Uploading files in '$upload_dir' to the SFTP server."
+
+  for file in "$upload_dir"/*; do
+    if [[ -f "$file" ]]; then
+      scp -i "$ssh_key" "$file" "$sftp_user@$sftp_server:$remote_dir/"
+      echo "Uploaded $file"
+    fi
   done
+
+  echo "==> Uploaded all files to the SFTP server."
 else
-  echo "==> No matching backup files found."
+  echo "==> No matching backup files found or no files were moved for upload."
 fi
