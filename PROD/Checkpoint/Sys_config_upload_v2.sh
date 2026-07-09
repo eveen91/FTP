@@ -23,19 +23,34 @@ upload_dir="upload"
 
 # Create upload directory if it doesn't exist
 mkdir -p "$upload_dir"
+echo "Created upload directory: $upload_dir"
 
-# Find all backup files, sort them by modification time, and process each group of backups for a firewall
-find "$backup_dir" -name "backup_*.tgz" -print0 \
-  | while IFS= read -r -d '' file; do
+declare -A newest_file newest_time
+
+# Find all backup files and process each one
+find "$backup_dir" -name "backup_*.tgz" -printf "%T+ %p\0" \
+  | while IFS= read -r -d '' time file; do
     # Extract the firewall name from the filename
     firewall_name=$(basename "$file" | cut -d'-' -f2)
+    echo "Processing file: $file"
 
-    # Find the newest backup for this firewall and move it to upload directory
-    newest_file=$(find "$backup_dir" -name "backup_${firewall_name}*.tgz" -newermt "$(stat -c %Y "$file")" 2> /dev/null || true)
-    if [[ -n "$newest_file" ]]; then
-      mv "$newest_file" "$upload_dir"
+    # Convert modification time to epoch for comparison
+    mtime=$(date -d "$time" +%s)
+
+    if [[ -z "${newest_time[$firewall_name]+x}" ]] || ((mtime > newest_time[$firewall_name])); then
+      # This file is newer than the current "newest" for this firewall.
+      # If there was a previous newest, it's no longer the newest -> move it out.
+      if [[ -n "${newest_file[$firewall_name]+x}" ]]; then
+        echo "Moving previous newest file for $firewall_name to upload directory: ${newest_file[$firewall_name]}"
+        mv "${newest_file[$firewall_name]}" "$upload_dir/"
+      fi
+      newest_file[$firewall_name]="$file"
+      newest_time[$firewall_name]=$mtime
+    else
+      # Not the newest for this firewall -> move to upload directory
+      echo "Moving file to upload directory: $file"
+      mv "$file" "$upload_dir/"
     fi
-
-    # Move the current file to upload directory
-    mv "$file" "$upload_dir"
   done
+
+echo "All files processed. Newest files retained in current directory, others moved to upload directory."
