@@ -59,7 +59,7 @@ while IFS= read -r -d '' file; do
     mv "$file" "$upload_dir/"
     moved_count=$((moved_count + 1))
   fi
-done < <(find "$backup_dir" -maxdepth 1 -name "backup-*.tgz" -print0)
+done < <(find "$backup_dir" -maxdepth 1 -name "backup_-*.tgz" -print0)
 
 echo "==> Done. Processed $file_count file(s), moved $moved_count to '$upload_dir/'."
 if ((file_count > 0)); then
