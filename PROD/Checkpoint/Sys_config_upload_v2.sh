@@ -62,7 +62,7 @@ while IFS= read -r -d '' file; do
 done < <(find "$backup_dir" -maxdepth 1 -name "backup-*.tgz" -print0)
 
 echo "==> Done. Processed $file_count file(s), moved $moved_count to '$upload_dir/'."
-if ((${#newest_file[@]} > 0)); then
+if ((file_count > 0)); then
   echo "==> Newest backup kept in '$backup_dir' for each system:"
   for name in "${!newest_file[@]}"; do
     echo "    - $name: $(basename "${newest_file[$name]}")"
