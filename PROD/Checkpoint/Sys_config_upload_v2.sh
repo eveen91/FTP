@@ -29,11 +29,16 @@ declare -A newest_time
 file_count=0
 moved_count=0
 
-# Find all backup files and process them in a single pass, keeping only the
-# newest file per system in "$backup_dir" and moving all older ones to upload.
+# Use a temp file instead of process substitution (avoids relying on /dev/fd,
+# which isn't available in some restricted/minimal environments)
+file_list=$(mktemp)
+trap 'rm -f "$file_list"' EXIT
+
+find "$backup_dir" -maxdepth 1 -name "backup_-*.tgz" -print0 > "$file_list"
+
 while IFS= read -r -d '' file; do
   base=$(basename "$file")
-  # Extract the system name from the filename (backup-<system_name>-fqdn-date.tgz)
+  # Extract the system name from the filename (backup_-<system_name>-fqdn-date.tgz)
   firewall_name=$(echo "$base" | cut -d'-' -f2)
   mtime=$(stat -c %Y "$file")
 
@@ -59,7 +64,7 @@ while IFS= read -r -d '' file; do
     mv "$file" "$upload_dir/"
     moved_count=$((moved_count + 1))
   fi
-done < <(find "$backup_dir" -maxdepth 1 -name "backup_-*.tgz" -print0)
+done < "$file_list"
 
 echo "==> Done. Processed $file_count file(s), moved $moved_count to '$upload_dir/'."
 if ((file_count > 0)); then
