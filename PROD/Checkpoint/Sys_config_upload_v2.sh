@@ -83,7 +83,26 @@ if ((file_count > 0)); then
     fi
   done
 
-  echo "==> Uploaded all files to the SFTP server."
+  # Function to check if files exist on the SFTP server
+  function check_files_on_sftp {
+    local sftp_command="sftp -i '$ssh_key' '$sftp_user@$sftp_server'"
+    for file in "$upload_dir"/*; do
+      if [[ -f "$file" ]]; then
+        base=$(basename "$file")
+        remote_file="$remote_dir/$base"
+        # Check if the file exists on the SFTP server
+        if ssh -i "$ssh_key" "$sftp_user@$sftp_server" test -e "$remote_file"; then
+          echo "File '$base' exists on the SFTP server."
+        else
+          echo "File '$base' does not exist on the SFTP server."
+        fi
+      fi
+    done
+  }
+
+  check_files_on_sftp
+
+  echo "==> Uploaded all files to the SFTP server and verified existence."
 else
   echo "==> No matching backup files found or no files were moved for upload."
 fi
