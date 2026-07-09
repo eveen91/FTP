@@ -54,7 +54,7 @@ moved_count=0
 file_list=$(mktemp)
 trap 'rm -f "$file_list"' EXIT
 
-find "$backup_dir" -maxdepth 1 -name "backup_-*.tgz" -print0 > "$file_list"
+find "$backup_dir" -maxdepth 1 -name "*.tar" -print0 > "$file_list"
 
 while IFS= read -r -d '' file; do
   base=$(basename "$file")
